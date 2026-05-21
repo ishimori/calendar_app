@@ -1,0 +1,225 @@
+/* Calendar App styles */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
+  font-size: 13px;
+  color: #222;
+  background: #fafafa;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-header {
+  background: #2c3e50;
+  color: #fff;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.app-header nav {
+  display: flex;
+  gap: 4px;
+}
+
+.tab {
+  padding: 6px 14px;
+  border-radius: 4px;
+  color: #cfd8dc;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.tab.active {
+  background: #fff;
+  color: #2c3e50;
+}
+
+.tab:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.app-main {
+  flex: 1;
+  padding: 16px;
+  overflow: auto;
+}
+
+/* ---------- SheetPage (テーブル) ---------- */
+
+.sheet-table {
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.sheet-table th,
+.sheet-table td {
+  border: 1px solid #ccc;
+  padding: 0;
+  height: 28px;
+  min-width: 80px;
+  vertical-align: middle;
+}
+
+.sheet-table thead th {
+  background: #fff9b0; /* Excelの黄色ヘッダ */
+  font-weight: 600;
+  padding: 4px 8px;
+  text-align: center;
+}
+
+.sheet-table .row-no {
+  width: 56px;
+  text-align: center;
+  color: #2962ff;
+  background: #fff;
+}
+
+.sheet-table td input {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 4px 6px;
+  font: inherit;
+  background: transparent;
+  outline: none;
+}
+
+.sheet-table td input:focus {
+  background: #fffde7;
+  outline: 1px solid #ffc107;
+}
+
+.sheet-table .col-category {
+  width: 80px;
+}
+
+.sheet-table .col-comment {
+  width: 200px;
+}
+
+.sheet-table .col-step {
+  width: 110px;
+  text-align: center;
+}
+
+.sheet-table td.col-step input {
+  text-align: center;
+}
+
+/* ---------- GanttPage ---------- */
+
+.gantt-wrap {
+  background: #fff;
+  display: inline-block;
+  border: 1px solid #ccc;
+}
+
+.gantt-row {
+  display: grid;
+  grid-template-columns: 56px 80px 80px repeat(var(--days, 30), 32px);
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.gantt-row.header {
+  background: #fde2c4; /* Excelの薄オレンジヘッダ */
+  font-weight: 600;
+}
+
+.gantt-cell {
+  border-right: 1px solid #e0e0e0;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  position: relative;
+}
+
+.gantt-cell.label {
+  justify-content: flex-start;
+  padding: 0 8px;
+  background: #fafafa;
+}
+
+.gantt-cell.row-no {
+  justify-content: center;
+  color: #2962ff;
+  background: #fff;
+}
+
+.gantt-cell.day {
+  cursor: pointer;
+  user-select: none;
+}
+
+.gantt-cell.day.in-range {
+  background: #fff59d; /* 工程期間内の黄色 */
+}
+
+.gantt-cell.day.has-note {
+  background: #fff176;
+  font-weight: 600;
+}
+
+.gantt-cell.day input {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  text-align: center;
+  background: #fff59d;
+  font: inherit;
+  outline: 1px solid #ffc107;
+}
+
+.gantt-cell.day.drag-hover {
+  background: #ffe082;
+  outline: 1px dashed #ff6f00;
+}
+
+.gantt-bar {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  background: rgba(255, 213, 79, 0.0);
+  cursor: grab;
+}
+
+.gantt-bar.dragging {
+  cursor: grabbing;
+}
+
+/* ---------- 共通 ---------- */
+
+.loading,
+.error {
+  padding: 24px;
+  font-size: 14px;
+}
+
+.error {
+  color: #c62828;
+}
+
+.page-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: #555;
+}

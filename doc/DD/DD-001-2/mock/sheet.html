@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>シート1モック - 業務一覧</title>
+    <style>
+      body {
+        margin: 16px;
+        font-family: 'Segoe UI', 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
+        font-size: 13px;
+        background: #fafafa;
+      }
+      h2 {
+        margin: 0 0 8px;
+        font-size: 14px;
+        color: #555;
+      }
+      p.note {
+        margin: 0 0 12px;
+        color: #777;
+      }
+      table {
+        border-collapse: collapse;
+        background: #fff;
+      }
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 4px 8px;
+        height: 28px;
+        min-width: 80px;
+        vertical-align: middle;
+      }
+      thead th {
+        background: #fff9b0;
+        font-weight: 600;
+        text-align: center;
+      }
+      .row-no {
+        width: 56px;
+        text-align: center;
+        color: #2962ff;
+        background: #fff;
+      }
+      .col-category { width: 80px; }
+      .col-comment  { width: 200px; }
+      .col-step     { width: 110px; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <h2>シート1モック: 業務一覧</h2>
+    <p class="note">セルをクリック→編集→Tab/Enter で確定して保存。工程列は「6/1〜6/3」形式で期間を入力。</p>
+    <table>
+      <thead>
+        <tr>
+          <th class="row-no">行No.</th>
+          <th class="col-category">大区分</th>
+          <th class="col-comment">コメント</th>
+          <th class="col-step">工程A</th>
+          <th class="col-step">工程B</th>
+          <th class="col-step">工程C</th>
+          <th class="col-step">工程D</th>
+          <th class="col-step">工程E</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="row-no">1</td>
+          <td>区分1</td>
+          <td>これはコメントです。</td>
+          <td class="col-step">6/1〜6/3</td>
+          <td class="col-step">6/5〜6/8</td>
+          <td class="col-step">6/10〜6/12</td>
+          <td class="col-step">6/13〜6/15</td>
+          <td class="col-step">6/20〜6/20</td>
+        </tr>
+        <tr><td class="row-no">2</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="row-no">3</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="row-no">4</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="row-no">5</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="row-no">6</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="row-no">7</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="row-no">8</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="row-no">9</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="row-no">10</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      </tbody>
+    </table>
+  </body>
+</html>

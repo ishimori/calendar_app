@@ -1,0 +1,17 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// 業務行(シート1の1行)。Phase 1段階では中身を data:JSON で動的に持つ。
+// data の中身は src/lib/schemas.ts の Zod schema で検証する。
+model Job {
+  id        Int      @id @default(autoincrement())
+  rowNo     Int      @unique
+  data      String   // JSON文字列。SQLiteのJson型は実体TEXTなのでStringで扱う
+  updatedAt DateTime @updatedAt
+}
