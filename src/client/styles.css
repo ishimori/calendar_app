@@ -206,6 +206,196 @@ body {
   cursor: grabbing;
 }
 
+/* ---------- GanttMockPage (DD-001-4) ---------- */
+
+.gantt-mock-wrap {
+  background: #fff;
+  display: inline-block;
+  border: 1px solid #ccc;
+}
+
+.gantt-mock-step {
+  height: 36px;
+}
+
+.gantt-mock-step .gantt-cell {
+  height: 36px;
+}
+
+.gantt-mock-bar {
+  position: relative;
+  grid-row: 1;
+  margin: 4px 1px;
+  border-radius: 4px;
+  cursor: grab;
+  pointer-events: auto;
+  opacity: 0.55;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.gantt-mock-bar:hover {
+  opacity: 0.7;
+}
+
+.gantt-mock-bar:active {
+  cursor: grabbing;
+}
+
+.gantt-mock-bar-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  background: rgba(0, 0, 0, 0.0);
+}
+
+.gantt-mock-bar-handle.left { left: 0; }
+.gantt-mock-bar-handle.right { right: 0; }
+
+.gantt-mock-bar-handle:hover {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.gantt-mock-note {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 3px;
+  cursor: grab;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  font-size: 11px;
+  color: #1a1a1a;
+  user-select: none;
+  z-index: 2;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.gantt-mock-note:active {
+  cursor: grabbing;
+}
+
+.gantt-mock-note-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: ew-resize;
+}
+
+.gantt-mock-note-handle.left { left: 0; }
+.gantt-mock-note-handle.right { right: 0; }
+
+.gantt-mock-note-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  width: 100%;
+}
+
+.gantt-mock-popover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+.gantt-mock-popover {
+  position: fixed;
+  z-index: 101;
+  background: #fff;
+  border: 1px solid #999;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 12px;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gantt-mock-popover-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #333;
+}
+
+.gantt-mock-popover textarea {
+  width: 100%;
+  font: inherit;
+  padding: 6px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.gantt-mock-popover-section {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.gantt-mock-popover-section > span {
+  width: 56px;
+  color: #555;
+}
+
+.gantt-mock-color-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  border: 1px solid #999;
+  cursor: pointer;
+  padding: 0;
+}
+
+.gantt-mock-color-swatch.selected {
+  outline: 2px solid #1976d2;
+  outline-offset: 1px;
+}
+
+.gantt-mock-popover-section input[type="color"] {
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #999;
+  cursor: pointer;
+}
+
+.gantt-mock-popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.gantt-mock-popover-actions button {
+  padding: 4px 12px;
+  border-radius: 3px;
+  border: 1px solid #999;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+}
+
+.gantt-mock-popover-actions button.primary {
+  background: #1976d2;
+  color: #fff;
+  border-color: #1976d2;
+}
+
+.gantt-mock-popover-actions button.danger {
+  background: #fff;
+  color: #c62828;
+  border-color: #c62828;
+}
+
 /* ---------- 共通 ---------- */
 
 .loading,

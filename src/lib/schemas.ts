@@ -3,11 +3,24 @@ import { z } from 'zod'
 // "YYYY-MM-DD" 形式の日付文字列
 const DateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD')
 
-export const StepSchema = z.object({
-  name: z.string(), // "A" / "B" / "工程A" など
+// 色: "#RRGGBB" 等の CSS カラー（緩く string で受ける）
+const ColorSchema = z.string()
+
+export const NoteSchema = z.object({
+  id: z.string(),
   startDate: DateStringSchema,
   endDate: DateStringSchema,
-  dailyNotes: z.record(DateStringSchema, z.string()).default({}),
+  text: z.string(),
+  color: ColorSchema.optional(),
+})
+export type Note = z.infer<typeof NoteSchema>
+
+export const StepSchema = z.object({
+  name: z.string(),
+  startDate: DateStringSchema,
+  endDate: DateStringSchema,
+  color: ColorSchema.optional(),
+  notes: z.array(NoteSchema).default([]),
 })
 export type Step = z.infer<typeof StepSchema>
 

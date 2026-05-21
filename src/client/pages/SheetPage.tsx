@@ -23,7 +23,8 @@ function setStep(data: JobData, name: string, range: { start: string; end: strin
     name,
     startDate: range.start,
     endDate: range.end,
-    dailyNotes: existing?.dailyNotes ?? {},
+    notes: existing?.notes ?? [],
+    ...(existing?.color ? { color: existing.color } : {}),
   }
   return { ...data, steps: [...others, next].sort((a, b) => a.name.localeCompare(b.name)) }
 }
