@@ -27,12 +27,12 @@ npm run db:seed                      # サンプル業務(行No.1) 投入
 ## 起動
 
 ```bash
-npm run dev:all   # BE(3000) + FE(5173) 同時起動
+npm run dev:all   # BE(3025) + FE(5198) 同時起動
 # 個別起動: npm run dev (BE) / npm run dev:fe (FE)
 # 停止: npm run dev:kill
 ```
 
-ブラウザで http://localhost:5173 を開く。
+ブラウザで http://localhost:5198 を開く。
 
 ## ディレクトリ
 

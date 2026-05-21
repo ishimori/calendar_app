@@ -1,5 +1,5 @@
 #!/bin/bash
-# ポート 3000 (Hono) / 5173 (Vite) を使っているプロセスを全てkill
+# ポート 3025 (Hono) / 5198 (Vite) を使っているプロセスを全てkill
 
 kill_port() {
   local port=$1
@@ -20,6 +20,6 @@ kill_port() {
 }
 
 echo "Killing dev servers..."
-kill_port 3000
-kill_port 5173
+kill_port 3025
+kill_port 5198
 echo "Done."

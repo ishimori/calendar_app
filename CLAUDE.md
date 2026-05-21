@@ -10,7 +10,7 @@ Excel運用の業務カレンダー（テーブル+ガント）を Web アプリ
 
 | コマンド | 用途 |
 |---|---|
-| `npm run dev:all` | BE(3000) + FE(5173) 同時起動 |
+| `npm run dev:all` | BE(3025) + FE(5198) 同時起動 |
 | `npm run dev` / `npm run dev:fe` | 個別起動 |
 | `npm run dev:kill` | 全停止 |
 | `npm run build` | tsc 型チェック (--noEmit) |

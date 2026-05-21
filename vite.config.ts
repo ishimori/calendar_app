@@ -6,9 +6,9 @@ export default defineConfig({
   root: path.resolve(__dirname, 'src/client'),
   plugins: [react()],
   server: {
-    port: 5173,
+    port: 5198,
     proxy: {
-      '/api': 'http://localhost:3000',
+      '/api': 'http://localhost:3025',
     },
     fs: {
       allow: [path.resolve(__dirname, 'src')],
