@@ -1,39 +1,39 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { NavLink } from 'react-router-dom'
 import { fetchJobs, putJob, type JobResponse } from '../lib/api'
-import type { JobData, JobEvent, Note, Step } from '../../lib/schemas'
-import { addDays, dateOfDay, monthEnd, monthStart } from '../lib/dateUtils'
+import type { JobData, JobEvent, Note, Step, StepStatus } from '../../lib/schemas'
+import { STEP_STATUS_META } from '../../lib/schemas'
+import {
+  addDays,
+  dateOfDay,
+  dayOfMonth,
+  isWeekendDay,
+  monthEnd,
+  monthStart,
+  todayDayInCalendar,
+  weekdayOf,
+} from '../lib/dateUtils'
+import { TankFilter } from '../components/TankFilter'
+import { JobDetailModal, type DetailModalContext } from '../components/JobDetailModal'
+import { EventEditDialog } from '../components/EventEditDialog'
 
-const CELL_PX = 32
-const DRAG_THRESHOLD = 5
-const STEP_NAMES = ['A', 'B', 'C', 'D', 'E'] as const
-const TOTAL_ROWS = 10
-const DAYS = Array.from({ length: 30 }, (_, i) => i + 1)
-const COLOR_PRESETS = ['#60a5fa', '#34d399', '#fbbf24', '#fb923c', '#f87171', '#a78bfa']
-const DEFAULT_BAR_COLOR = '#94a3b8'
-const DEFAULT_NOTE_COLOR = '#fde68a'
-const DEFAULT_EVENT_COLOR = '#ffffff'
+const DAY_W = 30
+const ROW_H = 32
+const TANK_W = 64
+const LEFT_W = TANK_W + 110 + 56 + 96 + 58 // タンク+ロット+大区分+工程+状態
+const DAYS = Array.from({ length: 30 }, (_, i) => i + 1) // 2026-05-01..2026-05-30
+const TODAY_DAY = todayDayInCalendar()
+const DRAG_THRESHOLD = 4
 
-function dayOf(date: string): number {
-  return Number(date.split('-')[2])
-}
-
-function clampDate(date: string, lo = monthStart, hi = monthEnd): string {
-  if (date < lo) return lo
-  if (date > hi) return hi
+function clampDate(date: string): string {
+  if (date < monthStart) return monthStart
+  if (date > monthEnd) return monthEnd
   return date
-}
-
-function isOverlapping(a: { startDate: string; endDate: string }, b: { startDate: string; endDate: string }): boolean {
-  return !(a.endDate < b.startDate || a.startDate > b.endDate)
 }
 
 function newId(): string {
   return (crypto.randomUUID && crypto.randomUUID()) || Math.random().toString(36).slice(2)
-}
-
-function emptyData(): JobData {
-  return { category: null, comment: null, steps: [], events: [] }
 }
 
 // ============================================================
@@ -46,32 +46,6 @@ function patchStep(data: JobData, stepName: string, patch: Partial<Step>): JobDa
   return { ...data, steps: [...data.steps.slice(0, idx), updated, ...data.steps.slice(idx + 1)] }
 }
 
-function patchNote(data: JobData, stepName: string, noteId: string, patch: Partial<Note> | null): JobData {
-  const sIdx = data.steps.findIndex((s) => s.name === stepName)
-  if (sIdx < 0) return data
-  const step = data.steps[sIdx]!
-  let nextNotes: Note[]
-  if (patch === null) {
-    nextNotes = step.notes.filter((n) => n.id !== noteId)
-  } else {
-    const nIdx = step.notes.findIndex((n) => n.id === noteId)
-    if (nIdx < 0) return data
-    nextNotes = [...step.notes.slice(0, nIdx), { ...step.notes[nIdx]!, ...patch }, ...step.notes.slice(nIdx + 1)]
-  }
-  const nextStep: Step = { ...step, notes: nextNotes }
-  return { ...data, steps: [...data.steps.slice(0, sIdx), nextStep, ...data.steps.slice(sIdx + 1)] }
-}
-
-function addNote(data: JobData, stepName: string, date: string): JobData {
-  const sIdx = data.steps.findIndex((s) => s.name === stepName)
-  if (sIdx < 0) return data
-  const step = data.steps[sIdx]!
-  if (step.notes.some((n) => date >= n.startDate && date <= n.endDate)) return data
-  const note: Note = { id: newId(), startDate: date, endDate: date, text: '', color: DEFAULT_NOTE_COLOR }
-  const nextStep: Step = { ...step, notes: [...step.notes, note] }
-  return { ...data, steps: [...data.steps.slice(0, sIdx), nextStep, ...data.steps.slice(sIdx + 1)] }
-}
-
 function patchEvent(data: JobData, eventId: string, patch: Partial<JobEvent> | null): JobData {
   if (patch === null) {
     return { ...data, events: data.events.filter((e) => e.id !== eventId) }
@@ -82,265 +56,466 @@ function patchEvent(data: JobData, eventId: string, patch: Partial<JobEvent> | n
   return { ...data, events: [...data.events.slice(0, idx), updated, ...data.events.slice(idx + 1)] }
 }
 
-function addEvent(data: JobData, date: string): JobData {
-  if (data.events.some((e) => date >= e.startDate && date <= e.endDate)) return data
-  const event: JobEvent = { id: newId(), startDate: date, endDate: date, text: '', color: DEFAULT_EVENT_COLOR }
-  return { ...data, events: [...data.events, event] }
-}
-
 // ============================================================
 // Page
 // ============================================================
 export function GanttPage() {
   const qc = useQueryClient()
-  const { data: jobs, isLoading, isError, error } = useQuery({
-    queryKey: ['jobs'],
-    queryFn: fetchJobs,
-  })
+  const { data: jobs, isLoading, isError, error } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs })
 
   const mutation = useMutation({
     mutationFn: ({ rowNo, data }: { rowNo: number; data: JobData }) => putJob(rowNo, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
   })
 
-  const [popover, setPopover] = useState<PopoverState | null>(null)
-  const gridStyle = useMemo(() => ({ ['--days' as string]: DAYS.length } as React.CSSProperties), [])
+  const allTanks = useMemo(() => {
+    const set = new Set<string>()
+    for (const j of jobs ?? []) if (j.data.tank) set.add(j.data.tank)
+    return [...set].sort()
+  }, [jobs])
+
+  const tankCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const j of jobs ?? []) {
+      if (j.data.tank) counts[j.data.tank] = (counts[j.data.tank] ?? 0) + 1
+    }
+    return counts
+  }, [jobs])
+
+  const [tankFilter, setTankFilter] = useState<Set<string>>(() => new Set())
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [filterInitialized, setFilterInitialized] = useState(false)
+  const [modalCtx, setModalCtx] = useState<DetailModalContext | null>(null)
+  const [eventEditCtx, setEventEditCtx] = useState<{ rowNo: number; eventId: string } | null>(null)
+
+  useEffect(() => {
+    if (!filterInitialized && allTanks.length > 0) {
+      setTankFilter(new Set(allTanks))
+      setFilterInitialized(true)
+    }
+  }, [allTanks, filterInitialized])
 
   if (isLoading) return <div className="loading">読み込み中...</div>
   if (isError) return <div className="error">エラー: {String(error)}</div>
 
-  const byRowNo = new Map<number, JobResponse>()
-  for (const j of jobs ?? []) byRowNo.set(j.rowNo, j)
+  const allJobs = jobs ?? []
+  const visibleJobs = allJobs.filter((j) => !j.data.tank || tankFilter.has(j.data.tank))
+
+  const tankGroups: { tank: string | null; lots: JobResponse[] }[] = []
+  visibleJobs.forEach((j) => {
+    const last = tankGroups[tankGroups.length - 1]
+    if (last && last.tank === j.data.tank) last.lots.push(j)
+    else tankGroups.push({ tank: j.data.tank, lots: [j] })
+  })
+
+  const stats = {
+    running: allJobs.flatMap((j) => j.data.steps).filter((s) => s.status === 'running').length,
+    overdue: allJobs.flatMap((j) => j.data.steps).filter((s) => s.status === 'overdue').length,
+  }
 
   function commit(rowNo: number, next: JobData) {
     mutation.mutate({ rowNo, data: next })
   }
 
-  function onUpdateStep(rowNo: number, data: JobData, stepName: string, patch: Partial<Step>) {
-    commit(rowNo, patchStep(data, stepName, patch))
+  function toggleTank(t: string) {
+    setTankFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(t)) next.delete(t)
+      else next.add(t)
+      return next
+    })
   }
 
-  function onUpdateNote(rowNo: number, data: JobData, stepName: string, noteId: string, patch: Partial<Note> | null) {
-    commit(rowNo, patchNote(data, stepName, noteId, patch))
+  function toggleAllTanks() {
+    setTankFilter((prev) => (prev.size === allTanks.length ? new Set() : new Set(allTanks)))
   }
 
-  function onAddNote(rowNo: number, data: JobData, stepName: string, date: string) {
-    commit(rowNo, addNote(data, stepName, date))
+  function openDetail(rowNo: number, data: JobData, stepName: string) {
+    setModalCtx({ rowNo, data, stepName })
   }
 
-  function onUpdateEvent(rowNo: number, data: JobData, eventId: string, patch: Partial<JobEvent> | null) {
-    commit(rowNo, patchEvent(data, eventId, patch))
-  }
+  const currentEvent = (() => {
+    if (!eventEditCtx) return null
+    const j = allJobs.find((j) => j.rowNo === eventEditCtx.rowNo)
+    return j?.data.events.find((e) => e.id === eventEditCtx.eventId) ?? null
+  })()
 
-  function onAddEvent(rowNo: number, data: JobData, date: string) {
-    commit(rowNo, addEvent(data, date))
-  }
+  const gridStyle = {
+    ['--leftW' as string]: LEFT_W + 'px',
+    ['--tankW' as string]: TANK_W + 'px',
+    ['--dayW' as string]: DAY_W + 'px',
+    ['--rowH' as string]: ROW_H + 'px',
+    ['--todayDay' as string]: String(TODAY_DAY),
+  } as React.CSSProperties
 
   return (
-    <div>
-      <p className="page-title">
-        シート2: バー・Note ともに掴んで動かす／伸ばす。Note クリックで編集、バー上ダブルクリックで Note 追加。
-      </p>
-      <div className="gantt-mock-wrap" style={gridStyle}>
-        <div className="gantt-row header" style={gridStyle}>
-          <div className="gantt-cell label">行No.</div>
-          <div className="gantt-cell label">大区分</div>
-          <div className="gantt-cell label">工程</div>
-          {DAYS.map((d) => (
-            <div key={d} className="gantt-cell">{d}</div>
-          ))}
+    <div className="vA-root">
+      {/* toolbar */}
+      <div className="vA-toolbar">
+        <div className="vA-toolbar-left">
+          <div className="s1-tabs">
+            <NavLink to="/sheet" className="s1-tab">業務一覧</NavLink>
+            <NavLink to="/gantt" className="s1-tab s1-tab-on">ガント</NavLink>
+          </div>
+          <div className="vA-divider" />
+          <button className="vA-iconbtn" title="前へ">‹</button>
+          <div className="vA-monthlabel">2026年 5月</div>
+          <button className="vA-iconbtn" title="次へ">›</button>
+          <div className="vA-divider" />
+          <TankFilter
+            allTanks={allTanks}
+            tankCounts={tankCounts}
+            selected={tankFilter}
+            onToggle={toggleTank}
+            onToggleAll={toggleAllTanks}
+            open={filterOpen}
+            setOpen={setFilterOpen}
+          />
         </div>
-        {Array.from({ length: TOTAL_ROWS }, (_, i) => i + 1).map((rowNo) => {
-          const job = byRowNo.get(rowNo)
-          const data = job?.data ?? emptyData()
-          return (
-            <JobRowGroup
-              key={rowNo}
-              rowNo={rowNo}
-              data={data}
-              gridStyle={gridStyle}
-              onUpdateStep={(stepName, patch) => onUpdateStep(rowNo, data, stepName, patch)}
-              onUpdateNote={(stepName, noteId, patch) => onUpdateNote(rowNo, data, stepName, noteId, patch)}
-              onAddNote={(stepName, date) => onAddNote(rowNo, data, stepName, date)}
-              onAddEvent={(date) => onAddEvent(rowNo, data, date)}
-              onOpenPopover={setPopover}
-            />
-          )
-        })}
+        <div className="vA-toolbar-right">
+          <button className="vA-chipbtn">
+            <span className="vA-dot" style={{ background: '#f5a623' }} /> 進行中 {stats.running}
+          </button>
+          <button className="vA-chipbtn">
+            <span className="vA-dot" style={{ background: '#e5484d' }} /> 遅延 {stats.overdue}
+          </button>
+          <div className="vA-divider" />
+          <button className="vA-btn vA-btn-primary">+ ロット追加</button>
+        </div>
       </div>
-      {popover && (
-        <NotePopover
-          key={popover.itemId}
-          state={popover}
-          onClose={() => setPopover(null)}
-          onSave={(patch) => {
-            const job = byRowNo.get(popover.rowNo)
-            const data = job?.data ?? emptyData()
-            if (popover.kind === 'note' && popover.stepName) {
-              onUpdateNote(popover.rowNo, data, popover.stepName, popover.itemId, patch)
-            } else {
-              onUpdateEvent(popover.rowNo, data, popover.itemId, patch)
-            }
-            setPopover(null)
-          }}
-          onDelete={() => {
-            const job = byRowNo.get(popover.rowNo)
-            const data = job?.data ?? emptyData()
-            if (popover.kind === 'note' && popover.stepName) {
-              onUpdateNote(popover.rowNo, data, popover.stepName, popover.itemId, null)
-            } else {
-              onUpdateEvent(popover.rowNo, data, popover.itemId, null)
-            }
-            setPopover(null)
-          }}
-          onChangeBarColor={(color) => {
-            if (popover.kind !== 'note' || !popover.stepName) return
-            const job = byRowNo.get(popover.rowNo)
-            const data = job?.data ?? emptyData()
-            onUpdateStep(popover.rowNo, data, popover.stepName, { color })
-          }}
-        />
-      )}
+
+      <div className="vA-legend">
+        {(['done', 'running', 'planned', 'overdue', 'blocked'] as const).map((s) => (
+          <span key={s} className="vA-legend-item">
+            <span className="vA-dot" style={{ background: STEP_STATUS_META[s].color }} />
+            {STEP_STATUS_META[s].ja}
+          </span>
+        ))}
+        <span style={{ flex: 1 }} />
+        <span className="vA-legend-hint">バードラッグで移動 / 端ドラッグで伸縮 / ダブルクリックで詳細</span>
+      </div>
+
+      {/* grid */}
+      <div className="vA-grid" style={gridStyle}>
+        {/* header row */}
+        <div className="vA-header-row">
+          <div className="vA-leftcols vA-head-left">
+            <div className="vA-col vA-col-tank">タンク</div>
+            <div className="vA-col vA-col-id">ロット</div>
+            <div className="vA-col vA-col-kubun">大区分</div>
+            <div className="vA-col vA-col-process">工程</div>
+            <div className="vA-col vA-col-status">状態</div>
+          </div>
+          <div className="vA-timeline-head">
+            {DAYS.map((d) => {
+              const we = isWeekendDay(d)
+              const today = d === TODAY_DAY
+              return (
+                <div key={d} className={'vA-day-head' + (we ? ' vA-we' : '') + (today ? ' vA-today' : '')}>
+                  <div className="vA-wkd">{weekdayOf(d)}</div>
+                  <div className="vA-dnum">{d}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* tank groups */}
+        {tankGroups.map((tg) => (
+          <div key={tg.tank ?? 'none'} className="vA-tank-group">
+            {tg.lots.map((job, lotIdx) => {
+              const isFirstInTank = lotIdx === 0
+              const isLastInTank = lotIdx === tg.lots.length - 1
+              const lotStart =
+                job.data.steps.length > 0
+                  ? Math.min(...job.data.steps.map((s) => dayOfMonth(s.startDate)))
+                  : null
+              const lotEnd =
+                job.data.steps.length > 0
+                  ? Math.max(...job.data.steps.map((s) => dayOfMonth(s.endDate)))
+                  : null
+              return (
+                <div
+                  key={job.rowNo}
+                  className={'vA-lot-group ' + (isLastInTank ? 'vA-lot-group-tank-last' : '')}
+                >
+                  {/* Overall row */}
+                  <OverallRow
+                    job={job}
+                    isFirstInTank={isFirstInTank}
+                    tankLotCount={tg.lots.length}
+                    lotStart={lotStart}
+                    lotEnd={lotEnd}
+                    onCommit={(next) => commit(job.rowNo, next)}
+                    onCommitEvent={(eventId, patch) =>
+                      commit(job.rowNo, patchEvent(job.data, eventId, patch))
+                    }
+                    onOpenEvent={(eventId) =>
+                      setEventEditCtx({ rowNo: job.rowNo, eventId })
+                    }
+                  />
+
+                  {/* Process rows */}
+                  {job.data.steps
+                    .slice()
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map((step, pi, arr) => (
+                      <ProcessRow
+                        key={step.name}
+                        step={step}
+                        isLastInLot={pi === arr.length - 1}
+                        onCommitStep={(patch) => commit(job.rowNo, patchStep(job.data, step.name, patch))}
+                        onOpenDetail={() => openDetail(job.rowNo, job.data, step.name)}
+                      />
+                    ))}
+                </div>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+
+      <JobDetailModal
+        context={modalCtx}
+        onClose={() => setModalCtx(null)}
+        onSave={(rowNo, nextData) => commit(rowNo, nextData)}
+      />
+
+      <EventEditDialog
+        event={currentEvent}
+        onClose={() => setEventEditCtx(null)}
+        onSave={(patch) => {
+          if (!eventEditCtx) return
+          const j = allJobs.find((x) => x.rowNo === eventEditCtx.rowNo)
+          if (!j) return
+          commit(eventEditCtx.rowNo, patchEvent(j.data, eventEditCtx.eventId, patch))
+        }}
+        onDelete={() => {
+          if (!eventEditCtx) return
+          const j = allJobs.find((x) => x.rowNo === eventEditCtx.rowNo)
+          if (!j) return
+          commit(eventEditCtx.rowNo, patchEvent(j.data, eventEditCtx.eventId, null))
+        }}
+      />
     </div>
   )
 }
 
 // ============================================================
-// JobRowGroup
+// Overall Row — ロット全体行 (lot span + events)
 // ============================================================
-function JobRowGroup({
-  rowNo,
-  data,
-  gridStyle,
-  onUpdateStep,
-  onUpdateNote,
-  onAddNote,
-  onAddEvent,
-  onOpenPopover,
+function OverallRow({
+  job,
+  isFirstInTank,
+  tankLotCount,
+  lotStart,
+  lotEnd,
+  onCommit,
+  onCommitEvent,
+  onOpenEvent,
 }: {
-  rowNo: number
-  data: JobData
-  gridStyle: React.CSSProperties
-  onUpdateStep: (stepName: string, patch: Partial<Step>) => void
-  onUpdateNote: (stepName: string, noteId: string, patch: Partial<Note> | null) => void
-  onAddNote: (stepName: string, date: string) => void
-  onAddEvent: (date: string) => void
-  onOpenPopover: (state: PopoverState) => void
+  job: JobResponse
+  isFirstInTank: boolean
+  tankLotCount: number
+  lotStart: number | null
+  lotEnd: number | null
+  onCommit: (next: JobData) => void
+  onCommitEvent: (eventId: string, patch: Partial<JobEvent>) => void
+  onOpenEvent: (eventId: string) => void
 }) {
-  const summaryRowRef = useRef<HTMLDivElement>(null)
+  const { rowNo, data } = job
 
-  const jobRange = (() => {
-    if (data.steps.length === 0) return null
-    let minStart = data.steps[0]!.startDate
-    let maxEnd = data.steps[0]!.endDate
-    for (const s of data.steps) {
-      if (s.startDate < minStart) minStart = s.startDate
-      if (s.endDate > maxEnd) maxEnd = s.endDate
+  function handleAddEvent(day: number) {
+    const date = dateOfDay(day)
+    const event: JobEvent = {
+      id: newId(),
+      startDate: date,
+      endDate: date,
+      text: '新規イベント',
+      kind: 'milestone',
     }
-    return { start: minStart, end: maxEnd }
-  })()
-
-  function dateFromClientX(clientX: number): string | null {
-    const rowEl = summaryRowRef.current
-    if (!rowEl) return null
-    const rect = rowEl.getBoundingClientRect()
-    const dayAreaLeft = rect.left + 56 + 80 + 80
-    const dayIdx = Math.floor((clientX - dayAreaLeft) / CELL_PX)
-    if (dayIdx < 0 || dayIdx >= DAYS.length) return null
-    return dateOfDay(dayIdx + 1)
+    onCommit({ ...data, events: [...data.events, event] })
   }
 
   return (
-    <>
+    <div className="vA-row vA-row-overall">
+      <div className="vA-leftcols">
+        <div className="vA-col vA-col-tank">
+          {isFirstInTank && (
+            <div className="vA-tankcell">
+              <div className="vA-tank-id">{data.tank ?? ''}</div>
+              {tankLotCount > 1 && data.tank && (
+                <div className="vA-tank-count">{tankLotCount}ロット</div>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="vA-col vA-col-id">
+          <div className="vA-lotcell">
+            <div className="vA-lot-id">{data.lotId ?? `Row ${rowNo}`}</div>
+            <div className="vA-lot-sub">{data.lotName ?? ''}</div>
+          </div>
+        </div>
+        <div className="vA-col vA-col-kubun">{data.category ?? ''}</div>
+        <div className="vA-col vA-col-process">
+          <span className="vA-proc-code vA-proc-code-all">全</span>
+          <span className="vA-proc-label">全体</span>
+        </div>
+        <div className="vA-col vA-col-status">
+          {lotStart !== null && lotEnd !== null && (
+            <span className="vA-lot-range">
+              {lotStart}〜{lotEnd}日
+            </span>
+          )}
+        </div>
+      </div>
       <div
-        className="gantt-row gantt-mock-summary"
-        style={{ ...gridStyle, position: 'relative' }}
-        ref={summaryRowRef}
+        className="vA-timeline-body"
         onDoubleClick={(e) => {
-          const date = dateFromClientX(e.clientX)
-          if (date) onAddEvent(date)
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+          const day = Math.floor((e.clientX - rect.left) / DAY_W) + 1
+          if (day >= 1 && day <= DAYS.length) handleAddEvent(day)
         }}
         title="ダブルクリックでイベント追加"
       >
-        <div className="gantt-cell row-no">{rowNo}</div>
-        <div className="gantt-cell label">{data.category ?? ''}</div>
-        <div className="gantt-cell label" />
         {DAYS.map((d) => (
-          <div key={d} className="gantt-cell" />
-        ))}
-        {jobRange && (
           <div
-            className="gantt-job-range-arrow"
-            style={{
-              gridColumnStart: 3 + dayOf(jobRange.start),
-              gridColumnEnd: 3 + dayOf(jobRange.end) + 1,
-            }}
-            title={`全体期間: ${jobRange.start} 〜 ${jobRange.end}`}
+            key={d}
+            className={'vA-cell' + (isWeekendDay(d) ? ' vA-we' : '') + (d === TODAY_DAY ? ' vA-today' : '')}
           />
-        )}
-        {data.events.map((event) => (
-          <EventTile
-            key={event.id}
-            event={event}
-            onClick={(e) => {
-              e.stopPropagation()
-              onOpenPopover({
-                rowNo,
-                kind: 'event',
-                stepName: null,
-                itemId: event.id,
-                text: event.text,
-                color: event.color ?? DEFAULT_EVENT_COLOR,
-                x: e.clientX,
-                y: e.clientY,
-              })
+        ))}
+        {/* Lot span indicator */}
+        {lotStart !== null && lotEnd !== null && (
+          <div
+            className="vA-lotspan"
+            style={{
+              left: (lotStart - 1) * DAY_W + 2,
+              width: (lotEnd - lotStart + 1) * DAY_W - 4,
             }}
+          >
+            <div className="vA-lotspan-line" />
+            <div className="vA-lotspan-cap vA-lotspan-cap-l" />
+            <div className="vA-lotspan-cap vA-lotspan-cap-r" />
+          </div>
+        )}
+        {/* Events */}
+        {data.events.map((ev) => (
+          <EventTile
+            key={ev.id}
+            event={ev}
+            onCommit={(patch) => onCommitEvent(ev.id, patch)}
+            onOpenEdit={() => onOpenEvent(ev.id)}
           />
         ))}
       </div>
-      {STEP_NAMES.map((stepName) => {
-        const step = data.steps.find((s) => s.name === stepName)
-        return (
-          <StepRow
-            key={stepName}
-            rowNo={rowNo}
-            stepName={stepName}
-            step={step}
-            gridStyle={gridStyle}
-            onUpdateStep={onUpdateStep}
-            onUpdateNote={onUpdateNote}
-            onAddNote={onAddNote}
-            onOpenPopover={onOpenPopover}
-          />
-        )
-      })}
-    </>
+    </div>
   )
 }
 
 // ============================================================
-// StepRow — 1工程行（バー＋Note レイヤ）
+// EventTile — 全体行のイベント (横方向ドラッグ移動 + ダブルクリックで編集)
+// ============================================================
+function EventTile({
+  event,
+  onCommit,
+  onOpenEdit,
+}: {
+  event: JobEvent
+  onCommit: (patch: Partial<JobEvent>) => void
+  onOpenEdit: () => void
+}) {
+  const dragRef = useRef<{
+    startX: number
+    startStart: string
+    startEnd: string
+    moved: boolean
+  } | null>(null)
+  const [draft, setDraft] = useState<{ start: string; end: string } | null>(null)
+
+  useEffect(() => {
+    function onMove(e: PointerEvent) {
+      const drag = dragRef.current
+      if (!drag) return
+      const deltaPx = e.clientX - drag.startX
+      if (!drag.moved && Math.abs(deltaPx) >= DRAG_THRESHOLD) drag.moved = true
+      if (!drag.moved) return
+      const deltaDays = Math.round(deltaPx / DAY_W)
+      const start = clampDate(addDays(drag.startStart, deltaDays))
+      // 期間を維持して移動
+      const realDelta = dayOfMonth(start) - dayOfMonth(drag.startStart)
+      const end = clampDate(addDays(drag.startEnd, realDelta))
+      setDraft({ start, end })
+    }
+    function onUp() {
+      const drag = dragRef.current
+      if (!drag) return
+      dragRef.current = null
+      if (drag.moved && draft) {
+        onCommit({ startDate: draft.start, endDate: draft.end })
+      }
+      setDraft(null)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [draft, onCommit])
+
+  function startDrag(e: React.PointerEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    dragRef.current = {
+      startX: e.clientX,
+      startStart: event.startDate,
+      startEnd: event.endDate,
+      moved: false,
+    }
+  }
+
+  const display = draft ?? { start: event.startDate, end: event.endDate }
+  const startDay = dayOfMonth(display.start)
+  const endDay = dayOfMonth(display.end)
+  const span = endDay - startDay + 1
+  const kind = event.kind ?? (startDay === endDay ? 'milestone' : 'event')
+
+  return (
+    <div
+      className={'vA-event vA-event-' + kind}
+      style={{
+        left: (startDay - 1) * DAY_W + 2,
+        minWidth: span * DAY_W - 4,
+      }}
+      onPointerDown={startDrag}
+      onDoubleClick={(e) => {
+        e.stopPropagation()
+        onOpenEdit()
+      }}
+      onClick={(e) => e.stopPropagation()}
+      title={`${startDay}日${span > 1 ? '〜' + endDay + '日' : ''}: ${event.text} (ドラッグで移動 / ダブルクリックで編集)`}
+    >
+      {kind === 'milestone' && <div className="vA-event-diamond" />}
+      <span className="vA-event-label">{event.text}</span>
+    </div>
+  )
+}
+
+// ============================================================
+// Process Row — 1工程行 (drag bar, sub-task chips, status badge)
 // ============================================================
 type BarDragKind = 'move' | 'resize-start' | 'resize-end'
 
-function StepRow({
-  rowNo,
-  stepName,
+function ProcessRow({
   step,
-  gridStyle,
-  onUpdateStep,
-  onUpdateNote,
-  onAddNote,
-  onOpenPopover,
+  isLastInLot,
+  onCommitStep,
+  onOpenDetail,
 }: {
-  rowNo: number
-  stepName: string
-  step: Step | undefined
-  gridStyle: React.CSSProperties
-  onUpdateStep: (stepName: string, patch: Partial<Step>) => void
-  onUpdateNote: (stepName: string, noteId: string, patch: Partial<Note> | null) => void
-  onAddNote: (stepName: string, date: string) => void
-  onOpenPopover: (state: PopoverState) => void
+  step: Step
+  isLastInLot: boolean
+  onCommitStep: (patch: Partial<Step>) => void
+  onOpenDetail: () => void
 }) {
   const dragRef = useRef<{
     kind: BarDragKind
@@ -351,7 +526,6 @@ function StepRow({
     moved: boolean
   } | null>(null)
   const [draftBar, setDraftBar] = useState<{ start: string; end: string; notes?: Note[] } | null>(null)
-  const rowRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     function onMove(e: PointerEvent) {
@@ -360,19 +534,18 @@ function StepRow({
       const deltaPx = e.clientX - drag.startX
       if (!drag.moved && Math.abs(deltaPx) >= DRAG_THRESHOLD) drag.moved = true
       if (!drag.moved) return
-      const deltaDays = Math.round(deltaPx / CELL_PX)
+      const deltaDays = Math.round(deltaPx / DAY_W)
       let start = drag.startStart
       let end = drag.startEnd
       let notes: Note[] | undefined
       if (drag.kind === 'move') {
         start = clampDate(addDays(drag.startStart, deltaDays))
         end = clampDate(addDays(drag.startEnd, deltaDays))
-        // バーと同じ実 delta で内訳 Note も持ち上げる
-        const realDelta = dayOf(start) - dayOf(drag.startStart)
+        const realDelta = dayOfMonth(start) - dayOfMonth(drag.startStart)
         notes = drag.startNotes.map((n) => ({
           ...n,
-          startDate: clampDate(addDays(n.startDate, realDelta), start, end),
-          endDate: clampDate(addDays(n.endDate, realDelta), start, end),
+          startDate: clampDate(addDays(n.startDate, realDelta)),
+          endDate: clampDate(addDays(n.endDate, realDelta)),
         }))
       } else if (drag.kind === 'resize-start') {
         const cand = clampDate(addDays(drag.startStart, deltaDays))
@@ -390,7 +563,7 @@ function StepRow({
       if (drag.moved && draftBar) {
         const patch: Partial<Step> = { startDate: draftBar.start, endDate: draftBar.end }
         if (draftBar.notes) patch.notes = draftBar.notes
-        onUpdateStep(stepName, patch)
+        onCommitStep(patch)
       }
       setDraftBar(null)
     }
@@ -400,10 +573,9 @@ function StepRow({
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
-  }, [draftBar, stepName, onUpdateStep])
+  }, [draftBar, onCommitStep])
 
   function startBarDrag(kind: BarDragKind, e: React.PointerEvent) {
-    if (!step) return
     e.preventDefault()
     e.stopPropagation()
     dragRef.current = {
@@ -416,287 +588,93 @@ function StepRow({
     }
   }
 
-  function dateOfClientX(clientX: number): string | null {
-    const rowEl = rowRef.current
-    if (!rowEl) return null
-    const rect = rowEl.getBoundingClientRect()
-    const dayAreaLeft = rect.left + 56 + 80 + 80
-    const dayIdx = Math.floor((clientX - dayAreaLeft) / CELL_PX)
-    if (dayIdx < 0 || dayIdx >= DAYS.length) return null
-    return dateOfDay(dayIdx + 1)
-  }
-
-  const display = draftBar ?? (step ? { start: step.startDate, end: step.endDate } : null)
+  const display = draftBar ?? { start: step.startDate, end: step.endDate }
+  const displayNotes = draftBar?.notes ?? step.notes
+  const startDay = dayOfMonth(display.start)
+  const endDay = dayOfMonth(display.end)
+  const span = endDay - startDay + 1
+  const status: StepStatus = step.status ?? 'planned'
+  const meta = STEP_STATUS_META[status]
+  const barColor = step.color ?? meta.color
 
   return (
-    <div className="gantt-row gantt-mock-step" style={{ ...gridStyle, position: 'relative' }} ref={rowRef}>
-      <div className="gantt-cell row-no" />
-      <div className="gantt-cell label" />
-      <div className="gantt-cell label">{stepName}</div>
-      {DAYS.map((d) => (
-        <div key={d} className="gantt-cell" />
-      ))}
-      {display && step && (
+    <div className={'vA-row ' + (isLastInLot ? 'vA-row-lastInLot' : '')}>
+      <div className="vA-leftcols">
+        <div className="vA-col vA-col-tank" />
+        <div className="vA-col vA-col-id" />
+        <div className="vA-col vA-col-kubun" />
+        <div className="vA-col vA-col-process">
+          <span className="vA-proc-code">{step.name}</span>
+          <span className="vA-proc-label">{step.label ?? ''}</span>
+        </div>
+        <div className="vA-col vA-col-status">
+          <span
+            className="vA-status-badge"
+            style={{
+              background: meta.color + '22',
+              color: meta.color,
+              borderColor: meta.color + '55',
+            }}
+          >
+            {meta.ja}
+          </span>
+        </div>
+      </div>
+      <div className="vA-timeline-body">
+        {DAYS.map((d) => (
+          <div
+            key={d}
+            className={'vA-cell' + (isWeekendDay(d) ? ' vA-we' : '') + (d === TODAY_DAY ? ' vA-today' : '')}
+          />
+        ))}
         <div
-          className="gantt-mock-bar"
+          className="vA-bar"
           style={{
-            gridColumnStart: 3 + dayOf(display.start),
-            gridColumnEnd: 3 + dayOf(display.end) + 1,
-            background: step.color ?? DEFAULT_BAR_COLOR,
+            left: (startDay - 1) * DAY_W,
+            width: span * DAY_W - 2,
+            background: barColor,
+            borderColor: barColor,
           }}
           onPointerDown={(e) => startBarDrag('move', e)}
           onDoubleClick={(e) => {
-            const date = dateOfClientX(e.clientX)
-            if (date && date >= display.start && date <= display.end) {
-              onAddNote(stepName, date)
-            }
+            e.stopPropagation()
+            onOpenDetail()
           }}
+          title={`${step.label ?? step.name}: ${startDay}日〜${endDay}日`}
         >
-          <div className="gantt-mock-bar-handle left" onPointerDown={(e) => startBarDrag('resize-start', e)} />
-          <div className="gantt-mock-bar-handle right" onPointerDown={(e) => startBarDrag('resize-end', e)} />
-          {(draftBar?.notes ?? step.notes).map((note) => (
-            <NoteTile
-              key={note.id}
-              note={note}
-              barStart={display.start}
-              barEnd={display.end}
-              otherNotes={(draftBar?.notes ?? step.notes).filter((n) => n.id !== note.id)}
-              onCommitRange={(start, end) => onUpdateNote(stepName, note.id, { startDate: start, endDate: end })}
-              onClick={(e) =>
-                onOpenPopover({
-                  rowNo,
-                  kind: 'note',
-                  stepName,
-                  itemId: note.id,
-                  text: note.text,
-                  color: note.color ?? DEFAULT_NOTE_COLOR,
-                  x: e.clientX,
-                  y: e.clientY,
-                })
-              }
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ============================================================
-// EventTile — Summary 行に乗るジョブ全体のイベント
-// ============================================================
-function EventTile({
-  event,
-  onClick,
-}: {
-  event: JobEvent
-  onClick: (e: React.MouseEvent) => void
-}) {
-  return (
-    <div
-      className="gantt-mock-event"
-      style={{
-        gridColumnStart: 3 + dayOf(event.startDate),
-        gridColumnEnd: 3 + dayOf(event.endDate) + 1,
-        background: event.color ?? DEFAULT_EVENT_COLOR,
-      }}
-      onClick={onClick}
-      onDoubleClick={(e) => e.stopPropagation()}
-      title={event.text || '(クリックで編集)'}
-    >
-      <div className="gantt-mock-event-text">{event.text.split('\n')[0] || '(イベント)'}</div>
-    </div>
-  )
-}
-
-// ============================================================
-// NoteTile
-// ============================================================
-function NoteTile({
-  note,
-  barStart,
-  barEnd,
-  otherNotes,
-  onCommitRange,
-  onClick,
-}: {
-  note: Note
-  barStart: string
-  barEnd: string
-  otherNotes: Note[]
-  onCommitRange: (start: string, end: string) => void
-  onClick: (e: React.PointerEvent) => void
-}) {
-  const dragRef = useRef<{
-    kind: BarDragKind
-    startX: number
-    startStart: string
-    startEnd: string
-    moved: boolean
-  } | null>(null)
-  const [draft, setDraft] = useState<{ start: string; end: string } | null>(null)
-
-  useEffect(() => {
-    function onMove(e: PointerEvent) {
-      const drag = dragRef.current
-      if (!drag) return
-      const deltaPx = e.clientX - drag.startX
-      if (!drag.moved && Math.abs(deltaPx) >= DRAG_THRESHOLD) drag.moved = true
-      if (!drag.moved) return
-      const deltaDays = Math.round(deltaPx / CELL_PX)
-      let start = drag.startStart
-      let end = drag.startEnd
-      if (drag.kind === 'move') {
-        start = clampDate(addDays(drag.startStart, deltaDays), barStart, barEnd)
-        end = clampDate(addDays(drag.startEnd, deltaDays), barStart, barEnd)
-        const origLen = dayOf(drag.startEnd) - dayOf(drag.startStart)
-        const newLen = dayOf(end) - dayOf(start)
-        if (newLen !== origLen) {
-          if (start === barStart) end = clampDate(addDays(start, origLen), barStart, barEnd)
-          else if (end === barEnd) start = clampDate(addDays(end, -origLen), barStart, barEnd)
-        }
-      } else if (drag.kind === 'resize-start') {
-        const cand = clampDate(addDays(drag.startStart, deltaDays), barStart, barEnd)
-        start = cand <= drag.startEnd ? cand : drag.startEnd
-      } else if (drag.kind === 'resize-end') {
-        const cand = clampDate(addDays(drag.startEnd, deltaDays), barStart, barEnd)
-        end = cand >= drag.startStart ? cand : drag.startStart
-      }
-      const overlap = otherNotes.some((n) => isOverlapping({ startDate: start, endDate: end }, { startDate: n.startDate, endDate: n.endDate }))
-      if (!overlap) setDraft({ start, end })
-    }
-    function onUp() {
-      const drag = dragRef.current
-      if (!drag) return
-      dragRef.current = null
-      if (drag.moved && draft) onCommitRange(draft.start, draft.end)
-      setDraft(null)
-    }
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-    return () => {
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-    }
-  }, [draft, barStart, barEnd, otherNotes, onCommitRange])
-
-  function start(kind: BarDragKind, e: React.PointerEvent) {
-    e.preventDefault()
-    e.stopPropagation()
-    dragRef.current = {
-      kind,
-      startX: e.clientX,
-      startStart: note.startDate,
-      startEnd: note.endDate,
-      moved: false,
-    }
-  }
-
-  function handlePointerUp(e: React.PointerEvent) {
-    const drag = dragRef.current
-    if (drag && !drag.moved) onClick(e)
-  }
-
-  const display = draft ?? { start: note.startDate, end: note.endDate }
-  const offsetDays = dayOf(display.start) - dayOf(barStart)
-  const widthDays = dayOf(display.end) - dayOf(display.start) + 1
-
-  return (
-    <div
-      className="gantt-mock-note"
-      style={{
-        left: offsetDays * CELL_PX,
-        width: widthDays * CELL_PX - 2,
-        background: note.color ?? DEFAULT_NOTE_COLOR,
-      }}
-      onPointerDown={(e) => start('move', e)}
-      onPointerUp={handlePointerUp}
-      onDoubleClick={(e) => e.stopPropagation()}
-      title={note.text || '(クリックで編集)'}
-    >
-      <div className="gantt-mock-note-handle left" onPointerDown={(e) => start('resize-start', e)} />
-      <div className="gantt-mock-note-handle right" onPointerDown={(e) => start('resize-end', e)} />
-      <div className="gantt-mock-note-text">{note.text.split('\n')[0] || '(空メモ)'}</div>
-    </div>
-  )
-}
-
-// ============================================================
-// Popover
-// ============================================================
-interface PopoverState {
-  rowNo: number
-  kind: 'note' | 'event'
-  stepName: string | null
-  itemId: string
-  text: string
-  color: string
-  x: number
-  y: number
-}
-
-function NotePopover({
-  state,
-  onClose,
-  onSave,
-  onDelete,
-  onChangeBarColor,
-}: {
-  state: PopoverState
-  onClose: () => void
-  onSave: (patch: Partial<Note>) => void
-  onDelete: () => void
-  onChangeBarColor: (color: string) => void
-}) {
-  const [text, setText] = useState(state.text)
-  const [color, setColor] = useState<string>(state.color)
-
-  return (
-    <>
-      <div className="gantt-mock-popover-backdrop" onClick={onClose} />
-      <div
-        className="gantt-mock-popover"
-        style={{ left: Math.min(state.x, window.innerWidth - 320), top: Math.min(state.y, window.innerHeight - 280) }}
-      >
-        <div className="gantt-mock-popover-title">{state.kind === 'event' ? 'イベント編集' : 'Note 編集'}</div>
-        <textarea
-          autoFocus
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={state.kind === 'event' ? 'イベント名（例: 出荷）' : '長文メモを入力\n（改行可）'}
-          rows={state.kind === 'event' ? 2 : 5}
-        />
-        <div className="gantt-mock-popover-section">
-          <span>{state.kind === 'event' ? '色:' : 'Note 色:'}</span>
-          {COLOR_PRESETS.map((c) => (
-            <button
-              key={c}
-              className={'gantt-mock-color-swatch' + (color === c ? ' selected' : '')}
-              style={{ background: c }}
-              onClick={() => setColor(c)}
-            />
-          ))}
-          <input type="color" value={color} onChange={(e) => setColor(e.target.value)} />
-        </div>
-        {state.kind === 'note' && (
-          <div className="gantt-mock-popover-section">
-            <span>バー色:</span>
-            {COLOR_PRESETS.map((c) => (
-              <button
-                key={c}
-                className="gantt-mock-color-swatch"
-                style={{ background: c }}
-                onClick={() => onChangeBarColor(c)}
-              />
-            ))}
+          <div
+            className="vA-bar-handle vA-bar-handle-l"
+            onPointerDown={(e) => startBarDrag('resize-start', e)}
+          />
+          <div className="vA-bar-grip">
+            {displayNotes.map((note) => {
+              const nStart = dayOfMonth(note.startDate)
+              const nEnd = dayOfMonth(note.endDate)
+              const nSpan = nEnd - nStart + 1
+              const offsetDays = nStart - startDay
+              return (
+                <div
+                  key={note.id}
+                  className="vA-subchip"
+                  style={{
+                    left: offsetDays * DAY_W + 1,
+                    width: nSpan * DAY_W - 3,
+                    background: note.color ?? 'rgba(255,255,255,.25)',
+                    color: note.color ? '#1c1c19' : 'inherit',
+                  }}
+                  title={`${nStart}日: ${note.text}`}
+                >
+                  <span className="vA-subchip-label">{note.text || '—'}</span>
+                </div>
+              )
+            })}
           </div>
-        )}
-        <div className="gantt-mock-popover-actions">
-          <button onClick={onDelete} className="danger">削除</button>
-          <button onClick={onClose}>キャンセル</button>
-          <button onClick={() => onSave({ text, color })} className="primary">保存</button>
+          <div
+            className="vA-bar-handle vA-bar-handle-r"
+            onPointerDown={(e) => startBarDrag('resize-end', e)}
+          />
         </div>
       </div>
-    </>
+    </div>
   )
 }

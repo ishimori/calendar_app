@@ -1,0 +1,184 @@
+/* シート1 — テーブルビュー (テキスト中心の業務テーブル) */
+.s1-root{
+  height: 100%;
+}
+.s1-tabs{
+  display: flex; gap: 2px;
+  background: var(--bg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 2px;
+}
+.s1-tab{
+  border: 0; background: transparent; color: var(--ink-2);
+  padding: 3px 12px; border-radius: 4px;
+  font: inherit; font-size: 12px; font-weight: 500;
+  cursor: pointer;
+}
+.s1-tab-on{ background: var(--paper); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+
+.s1-tablewrap{
+  flex: 1 1 auto;
+  overflow: auto;
+  background: var(--paper);
+}
+
+.s1-table{
+  width: 100%; border-collapse: collapse;
+  font-size: 12px;
+  background: var(--paper);
+  table-layout: fixed;
+}
+.s1-table thead{
+  position: sticky; top: 0; z-index: 3;
+  background: var(--bg);
+}
+.s1-th{
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 11px; font-weight: 600; color: var(--ink-2);
+  border-bottom: 2px solid var(--line-strong);
+  border-right: 1px solid var(--line);
+  white-space: nowrap;
+}
+.s1-th:last-child{ border-right: 0; }
+.s1-th-no{ width: 44px; text-align: center; color: var(--ink-3); }
+.s1-th-tank{ width: 84px; }
+.s1-th-id{ width: 130px; }
+.s1-th-kubun{ width: 70px; }
+.s1-th-owner{ width: 70px; }
+.s1-th-comment{ width: 200px; }
+.s1-th-process{ width: 110px; }
+.s1-th-ops{ width: 110px; text-align: center; }
+
+.s1-row{
+  height: var(--rowH);
+  border-bottom: 1px solid var(--line);
+}
+/* tank-group separator: thicker bottom border on the last row of each tank */
+.s1-row-tank-last{
+  border-bottom: 2px solid var(--line-strong);
+}
+.s1-row:hover{ background: rgba(29, 78, 216, 0.025); }
+.s1-row:hover .s1-opbtn:not(.s1-opbtn-disabled){ opacity: 1; }
+.s1-row-empty{ background: transparent; }
+.s1-row-empty:hover{ background: rgba(29, 78, 216, 0.012); }
+
+/* tank cell — merged (rowspan) for all lots in the same tank */
+.s1-td-tank{
+  background: var(--bg);
+  border-right: 2px solid var(--line-strong) !important;
+  text-align: center;
+  vertical-align: middle;
+  padding: 6px 8px;
+}
+.s1-tank-cell{
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.s1-tank-id{
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+.s1-tank-count{
+  font-size: 9px;
+  color: var(--ink-3);
+  font-weight: 500;
+  background: var(--paper);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.s1-td{
+  padding: 0;
+  border-right: 1px solid var(--line);
+  vertical-align: middle;
+  position: relative;
+  overflow: hidden;
+}
+.s1-td:last-child{ border-right: 0; }
+.s1-td-no{
+  text-align: center;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 0 8px;
+}
+.s1-td-id .s1-editable + .s1-editable{ margin-top: -2px; }
+
+/* Editable cell — looks like text, behaves like an input on focus */
+.s1-editable{
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--ink);
+  outline: 0;
+  cursor: text;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 16px;
+}
+.s1-editable-empty::before{
+  content: attr(data-placeholder);
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.s1-editable:focus{
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  white-space: normal;
+  position: relative; z-index: 1;
+}
+.s1-editable.s1-mono{ font-variant-numeric: tabular-nums; }
+.s1-editable.s1-faint{ color: var(--ink-3); font-size: 10.5px; padding-top: 0; }
+
+/* process cell */
+.s1-td-proc:hover{
+  background: rgba(29, 78, 216, 0.04);
+  cursor: text;
+}
+.s1-overdue{ background: rgba(229, 72, 77, 0.06); }
+.s1-overdue:hover{ background: rgba(229, 72, 77, 0.12); }
+.s1-overdue .s1-editable{ color: #c83a3f; font-weight: 600; }
+
+/* ops */
+.s1-td-ops{
+  text-align: center;
+  white-space: nowrap;
+  padding: 0 4px;
+}
+.s1-opbtn{
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink-2);
+  border-radius: 4px;
+  font: inherit; font-size: 11px;
+  cursor: pointer;
+  margin: 0 2px;
+  opacity: 0;
+  transition: opacity .12s, background .12s, color .12s;
+  line-height: 1;
+}
+.s1-opbtn:hover{ background: var(--bg); color: var(--ink); }
+.s1-opbtn-danger:hover{ background: #fee; color: #c83a3f; border-color: #fcc; }
+.s1-opbtn-disabled{
+  opacity: 0.3;
+  cursor: not-allowed;
+  background: var(--bg);
+  color: var(--ink-3);
+}
+.s1-row-empty .s1-opbtn-disabled{ opacity: 0.25; }
+
+/* footer */
+.s1-footer{
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 14px;
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+  font-size: 11px; color: var(--ink-3);
+  flex: 0 0 auto;
+}
+.s1-footer-sep{ opacity: .5; }
