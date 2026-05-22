@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchJobs, putJob, type JobResponse } from '../lib/api'
+import { deleteJob, fetchJobs, putJob, type JobResponse } from '../lib/api'
 import type { JobData, Step } from '../../lib/schemas'
 import { parseRangeLabel, rangeLabel } from '../lib/dateUtils'
 
@@ -8,7 +8,15 @@ const TOTAL_ROWS = 10
 const STEP_NAMES = ['A', 'B', 'C', 'D', 'E'] as const
 
 function emptyData(): JobData {
-  return { category: null, comment: null, steps: [] }
+  return { category: null, comment: null, steps: [], events: [] }
+}
+
+function isEmpty(data: JobData): boolean {
+  return !data.category && !data.comment && data.steps.length === 0
+}
+
+function newId(): string {
+  return (crypto.randomUUID && crypto.randomUUID()) || Math.random().toString(36).slice(2)
 }
 
 function getStep(data: JobData, name: string): Step | undefined {
@@ -41,11 +49,50 @@ export function SheetPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: (rowNo: number) => deleteJob(rowNo),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
+  })
+
   if (isLoading) return <div className="loading">読み込み中...</div>
   if (isError) return <div className="error">エラー: {String(error)}</div>
 
   const byRowNo = new Map<number, JobResponse>()
   for (const j of jobs ?? []) byRowNo.set(j.rowNo, j)
+
+  function findNextEmptyRowNo(exclude: number): number | null {
+    for (let r = 1; r <= TOTAL_ROWS; r++) {
+      if (r === exclude) continue
+      const job = byRowNo.get(r)
+      if (!job || isEmpty(job.data)) return r
+    }
+    return null
+  }
+
+  function handleDuplicate(rowNo: number) {
+    const job = byRowNo.get(rowNo)
+    if (!job || isEmpty(job.data)) return
+    const target = findNextEmptyRowNo(rowNo)
+    if (!target) {
+      alert('複製先の空き行がありません')
+      return
+    }
+    const cloned: JobData = {
+      ...job.data,
+      steps: job.data.steps.map((s) => ({
+        ...s,
+        notes: s.notes.map((n) => ({ ...n, id: newId() })),
+      })),
+    }
+    mutation.mutate({ rowNo: target, data: cloned })
+  }
+
+  function handleDelete(rowNo: number) {
+    const job = byRowNo.get(rowNo)
+    if (!job || isEmpty(job.data)) return
+    if (!confirm(`行No. ${rowNo} を削除しますか？`)) return
+    deleteMutation.mutate(rowNo)
+  }
 
   return (
     <div>
@@ -59,6 +106,7 @@ export function SheetPage() {
             {STEP_NAMES.map((n) => (
               <th key={n} className="col-step">工程{n}</th>
             ))}
+            <th className="col-actions">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -71,6 +119,8 @@ export function SheetPage() {
                 rowNo={rowNo}
                 data={data}
                 onSave={(nextData) => mutation.mutate({ rowNo, data: nextData })}
+                onDuplicate={() => handleDuplicate(rowNo)}
+                onDelete={() => handleDelete(rowNo)}
               />
             )
           })}
@@ -84,11 +134,16 @@ function SheetRow({
   rowNo,
   data,
   onSave,
+  onDuplicate,
+  onDelete,
 }: {
   rowNo: number
   data: JobData
   onSave: (next: JobData) => void
+  onDuplicate: () => void
+  onDelete: () => void
 }) {
+  const empty = isEmpty(data)
   return (
     <tr>
       <td className="row-no">{rowNo}</td>
@@ -128,6 +183,14 @@ function SheetRow({
           </td>
         )
       })}
+      <td className="col-actions">
+        {!empty && (
+          <div className="row-actions">
+            <button className="row-action" onClick={onDuplicate} title="この行を空き行に複製">複製</button>
+            <button className="row-action danger" onClick={onDelete} title="この行を削除">削除</button>
+          </div>
+        )}
+      </td>
     </tr>
   )
 }

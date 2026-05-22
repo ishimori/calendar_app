@@ -24,10 +24,14 @@ export const StepSchema = z.object({
 })
 export type Step = z.infer<typeof StepSchema>
 
+export const JobEventSchema = NoteSchema
+export type JobEvent = z.infer<typeof JobEventSchema>
+
 export const JobDataSchema = z.object({
   category: z.string().nullable().default(null),
   comment: z.string().nullable().default(null),
   steps: z.array(StepSchema).default([]),
+  events: z.array(JobEventSchema).default([]),
 })
 export type JobData = z.infer<typeof JobDataSchema>
 

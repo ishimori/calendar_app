@@ -21,3 +21,8 @@ export async function putJob(rowNo: number, data: JobData): Promise<JobResponse>
   if (!res.ok) throw new Error(`PUT /api/jobs/${rowNo} ${res.status}`)
   return res.json()
 }
+
+export async function deleteJob(rowNo: number): Promise<void> {
+  const res = await fetch(`/api/jobs/${rowNo}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`DELETE /api/jobs/${rowNo} ${res.status}`)
+}

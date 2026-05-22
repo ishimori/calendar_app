@@ -30,6 +30,16 @@ jobs.get('/:rowNo', async (c) => {
   })
 })
 
+// 削除 (存在しなくても 204)
+jobs.delete('/:rowNo', async (c) => {
+  const rowNo = Number(c.req.param('rowNo'))
+  if (!Number.isInteger(rowNo) || rowNo < 1) {
+    return c.json({ error: 'invalid rowNo' }, 400)
+  }
+  await prisma.job.deleteMany({ where: { rowNo } })
+  return c.body(null, 204)
+})
+
 // 作成 or 更新 (upsert)
 jobs.put('/:rowNo', async (c) => {
   const rowNo = Number(c.req.param('rowNo'))

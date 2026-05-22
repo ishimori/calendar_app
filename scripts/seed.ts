@@ -15,6 +15,7 @@ const PRESET_PURPLE = '#a78bfa'
 const sampleRow1: JobData = {
   category: '区分1',
   comment: 'これはコメントです。',
+  events: [],
   steps: [
     {
       name: 'A',

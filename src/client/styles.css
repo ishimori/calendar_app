@@ -1,15 +1,72 @@
-/* Calendar App styles */
+/* ============================================================
+   Calendar App — design tokens + UI
+   ============================================================ */
 
-* {
-  box-sizing: border-box;
+:root {
+  /* Surface / background */
+  --color-bg: #f5f7fa;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f8fafc;
+  --color-surface-hover: #f1f5f9;
+
+  /* Border */
+  --color-border: #e4e7ec;
+  --color-border-strong: #cbd5e1;
+
+  /* Text */
+  --color-text: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #64748b;
+  --color-text-inverse: #f8fafc;
+
+  /* Accent (brand blue) */
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-accent-soft: #eff6ff;
+
+  /* Semantic */
+  --color-danger: #dc2626;
+  --color-danger-soft: #fee2e2;
+
+  /* Header / table head */
+  --color-header-bg: #0f172a;
+  --color-table-head: #f8fafc;
+  --color-table-head-text: #334155;
+
+  /* Row number */
+  --color-row-no: #2563eb;
+
+  /* Radii */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-xl: 12px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 1px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 8px -2px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 12px 32px -8px rgba(15, 23, 42, 0.18), 0 4px 8px -2px rgba(15, 23, 42, 0.08);
+
+  /* Type */
+  --font-sans: 'Inter', 'Noto Sans JP', 'Segoe UI', 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 13px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
 }
 
-body {
+* { box-sizing: border-box; }
+
+html, body {
   margin: 0;
-  font-family: 'Segoe UI', 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
-  font-size: 13px;
-  color: #222;
-  background: #fafafa;
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  font-feature-settings: 'tnum' 1;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .app {
@@ -18,19 +75,28 @@ body {
   min-height: 100vh;
 }
 
+/* ============================================================
+   App Header
+   ============================================================ */
+
 .app-header {
-  background: #2c3e50;
-  color: #fff;
-  padding: 8px 16px;
+  background: var(--color-header-bg);
+  color: var(--color-text-inverse);
+  padding: 10px 24px;
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 28px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 50;
 }
 
 .app-header h1 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .app-header nav {
@@ -40,206 +106,321 @@ body {
 
 .tab {
   padding: 6px 14px;
-  border-radius: 4px;
-  color: #cfd8dc;
+  border-radius: var(--r-md);
+  color: rgba(255, 255, 255, 0.7);
   text-decoration: none;
-  font-size: 13px;
-}
-
-.tab.active {
-  background: #fff;
-  color: #2c3e50;
+  font-size: var(--fs-base);
+  font-weight: 500;
+  transition: background-color 0.15s, color 0.15s;
 }
 
 .tab:hover:not(.active) {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.tab.active {
+  background: #ffffff;
+  color: var(--color-header-bg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .app-main {
   flex: 1;
-  padding: 16px;
+  padding: 24px;
   overflow: auto;
 }
 
-/* ---------- SheetPage (テーブル) ---------- */
+/* ============================================================
+   Sheet1 (table)
+   ============================================================ */
 
 .sheet-table {
-  border-collapse: collapse;
-  background: #fff;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .sheet-table th,
 .sheet-table td {
-  border: 1px solid #ccc;
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
   padding: 0;
-  height: 28px;
+  height: 34px;
   min-width: 80px;
   vertical-align: middle;
 }
 
+.sheet-table th:last-child,
+.sheet-table td:last-child {
+  border-right: 0;
+}
+
+.sheet-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.sheet-table tbody tr:hover td {
+  background: var(--color-surface-hover);
+}
+
 .sheet-table thead th {
-  background: #fff9b0; /* Excelの黄色ヘッダ */
+  background: var(--color-table-head);
+  color: var(--color-table-head-text);
   font-weight: 600;
-  padding: 4px 8px;
+  font-size: var(--fs-sm);
+  padding: 8px 10px;
   text-align: center;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid var(--color-border-strong);
 }
 
 .sheet-table .row-no {
   width: 56px;
   text-align: center;
-  color: #2962ff;
-  background: #fff;
+  color: var(--color-row-no);
+  background: var(--color-surface);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
 }
 
 .sheet-table td input {
   width: 100%;
   height: 100%;
   border: 0;
-  padding: 4px 6px;
+  padding: 4px 10px;
   font: inherit;
   background: transparent;
   outline: none;
+  color: var(--color-text);
 }
 
 .sheet-table td input:focus {
-  background: #fffde7;
-  outline: 1px solid #ffc107;
+  background: var(--color-accent-soft);
+  box-shadow: inset 0 0 0 2px var(--color-accent);
 }
 
-.sheet-table .col-category {
-  width: 80px;
-}
-
-.sheet-table .col-comment {
-  width: 200px;
-}
-
+.sheet-table .col-category { width: 80px; }
+.sheet-table .col-comment { width: 220px; }
 .sheet-table .col-step {
   width: 110px;
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
+.sheet-table td.col-step input { text-align: center; }
 
-.sheet-table td.col-step input {
+.sheet-table .col-actions {
+  width: 110px;
   text-align: center;
+  padding: 0 6px;
 }
 
-/* ---------- GanttPage ---------- */
+.row-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  align-items: center;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
 
-.gantt-wrap {
-  background: #fff;
+.sheet-table tbody tr:hover .row-actions {
+  opacity: 1;
+}
+
+.row-action {
+  padding: 3px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.row-action:hover {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.row-action.danger:hover {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+/* ============================================================
+   Sheet2 gantt
+   ============================================================ */
+
+.gantt-mock-wrap {
+  background: var(--color-surface);
   display: inline-block;
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .gantt-row {
   display: grid;
   grid-template-columns: 56px 80px 80px repeat(var(--days, 30), 32px);
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .gantt-row.header {
-  background: #fde2c4; /* Excelの薄オレンジヘッダ */
+  background: var(--color-table-head);
+  color: var(--color-table-head-text);
   font-weight: 600;
+  border-bottom: 1px solid var(--color-border-strong);
 }
 
 .gantt-cell {
-  border-right: 1px solid #e0e0e0;
+  border-right: 1px solid var(--color-border);
   height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
   position: relative;
+  color: var(--color-text-secondary);
+}
+
+/* 週単位の区切り線(7,14,21,28日の右側) */
+.gantt-row .gantt-cell:nth-child(10),
+.gantt-row .gantt-cell:nth-child(17),
+.gantt-row .gantt-cell:nth-child(24),
+.gantt-row .gantt-cell:nth-child(31) {
+  border-right-color: var(--color-border-strong);
 }
 
 .gantt-cell.label {
   justify-content: flex-start;
-  padding: 0 8px;
-  background: #fafafa;
+  padding: 0 10px;
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font-size: var(--fs-base);
 }
 
 .gantt-cell.row-no {
   justify-content: center;
-  color: #2962ff;
-  background: #fff;
+  color: var(--color-row-no);
+  background: var(--color-surface);
+  font-weight: 500;
+  font-size: var(--fs-base);
 }
 
-.gantt-cell.day {
-  cursor: pointer;
-  user-select: none;
+/* Summary row (行No. 行) */
+.gantt-mock-summary {
+  position: relative;
+  height: 32px;
 }
 
-.gantt-cell.day.in-range {
-  background: #fff59d; /* 工程期間内の黄色 */
+.gantt-mock-summary .gantt-cell {
+  height: 32px;
 }
 
-.gantt-cell.day.has-note {
-  background: #fff176;
-  font-weight: 600;
+/* Job 同士の境界 — 直前の Step 行(E)の下罫線を消し、次の Summary 行の上に強罫線 */
+.gantt-mock-step:has(+ .gantt-mock-summary) {
+  border-bottom: 0;
 }
 
-.gantt-cell.day input {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  padding: 0;
-  text-align: center;
-  background: #fff59d;
-  font: inherit;
-  outline: 1px solid #ffc107;
+.gantt-mock-step + .gantt-mock-summary {
+  border-top: 2px solid var(--color-border-strong);
 }
 
-.gantt-cell.day.drag-hover {
-  background: #ffe082;
-  outline: 1px dashed #ff6f00;
+.gantt-job-range-arrow {
+  grid-row: 1;
+  align-self: center;
+  position: relative;
+  height: 3px;
+  background: linear-gradient(to right, #fca5a5, var(--color-danger));
+  border-radius: 2px;
+  margin-right: 10px;
+  pointer-events: none;
 }
 
-.gantt-bar {
+.gantt-job-range-arrow::after {
+  content: '';
   position: absolute;
-  top: 2px;
-  bottom: 2px;
-  background: rgba(255, 213, 79, 0.0);
-  cursor: grab;
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-left: 12px solid var(--color-danger);
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  filter: drop-shadow(0 1px 1px rgba(220, 38, 38, 0.25));
 }
 
-.gantt-bar.dragging {
-  cursor: grabbing;
+/* Event tile (Summary 行に乗るジョブ全体イベント) */
+.gantt-mock-event {
+  grid-row: 1;
+  align-self: center;
+  position: relative;
+  z-index: 3;
+  height: 20px;
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(15, 23, 42, 0.35);
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  margin: 0 1px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--color-text);
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
+  transition: box-shadow 0.15s, transform 0.1s;
 }
 
-/* ---------- GanttMockPage (DD-001-4) ---------- */
-
-.gantt-mock-wrap {
-  background: #fff;
-  display: inline-block;
-  border: 1px solid #ccc;
+.gantt-mock-event:hover {
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.22);
+  transform: translateY(-1px);
 }
 
-.gantt-mock-step {
-  height: 36px;
+.gantt-mock-event-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  width: 100%;
+  text-align: center;
 }
 
-.gantt-mock-step .gantt-cell {
-  height: 36px;
-}
+/* Step row */
+.gantt-mock-step { height: 38px; }
+.gantt-mock-step .gantt-cell { height: 38px; }
 
 .gantt-mock-bar {
   position: relative;
   grid-row: 1;
-  margin: 4px 1px;
-  border-radius: 4px;
+  margin: 5px 1px;
+  border-radius: var(--r-md);
   cursor: grab;
   pointer-events: auto;
-  opacity: 0.55;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  opacity: 0.88;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow: var(--shadow-sm);
+  transition: opacity 0.15s, box-shadow 0.15s;
 }
 
 .gantt-mock-bar:hover {
-  opacity: 0.7;
+  opacity: 1;
+  box-shadow: var(--shadow-md);
 }
 
-.gantt-mock-bar:active {
-  cursor: grabbing;
-}
+.gantt-mock-bar:active { cursor: grabbing; }
 
 .gantt-mock-bar-handle {
   position: absolute;
@@ -247,36 +428,35 @@ body {
   bottom: 0;
   width: 6px;
   cursor: ew-resize;
-  background: rgba(0, 0, 0, 0.0);
+  background: rgba(0, 0, 0, 0);
+  transition: background-color 0.15s;
 }
 
-.gantt-mock-bar-handle.left { left: 0; }
-.gantt-mock-bar-handle.right { right: 0; }
+.gantt-mock-bar-handle.left  { left: 0;  border-radius: var(--r-md) 0 0 var(--r-md); }
+.gantt-mock-bar-handle.right { right: 0; border-radius: 0 var(--r-md) var(--r-md) 0; }
 
-.gantt-mock-bar-handle:hover {
-  background: rgba(0, 0, 0, 0.15);
-}
+.gantt-mock-bar-handle:hover { background: rgba(15, 23, 42, 0.18); }
 
+/* Note tile */
 .gantt-mock-note {
   position: absolute;
   top: 4px;
   bottom: 4px;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   cursor: grab;
-  border: 1px solid rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(15, 23, 42, 0.18);
   display: flex;
   align-items: center;
   padding: 0 6px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
   color: #1a1a1a;
   user-select: none;
   z-index: 2;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18);
 }
 
-.gantt-mock-note:active {
-  cursor: grabbing;
-}
+.gantt-mock-note:active { cursor: grabbing; }
 
 .gantt-mock-note-handle {
   position: absolute;
@@ -286,7 +466,7 @@ body {
   cursor: ew-resize;
 }
 
-.gantt-mock-note-handle.left { left: 0; }
+.gantt-mock-note-handle.left  { left: 0; }
 .gantt-mock-note-handle.right { right: 0; }
 
 .gantt-mock-note-text {
@@ -297,119 +477,162 @@ body {
   width: 100%;
 }
 
+/* ============================================================
+   Popover (Note 編集)
+   ============================================================ */
+
 .gantt-mock-popover-backdrop {
   position: fixed;
   inset: 0;
   z-index: 100;
+  background: rgba(15, 23, 42, 0.25);
+  backdrop-filter: blur(2px);
 }
 
 .gantt-mock-popover {
   position: fixed;
   z-index: 101;
-  background: #fff;
-  border: 1px solid #999;
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  padding: 12px;
-  width: 300px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 16px;
+  width: 320px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .gantt-mock-popover-title {
   font-weight: 600;
-  font-size: 13px;
-  color: #333;
+  font-size: var(--fs-md);
+  color: var(--color-text);
 }
 
 .gantt-mock-popover textarea {
   width: 100%;
   font: inherit;
-  padding: 6px;
-  border: 1px solid #ccc;
-  border-radius: 3px;
+  font-size: var(--fs-base);
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-md);
   resize: vertical;
-  min-height: 80px;
+  min-height: 90px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.gantt-mock-popover textarea:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
 }
 
 .gantt-mock-popover-section {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
+  gap: 6px;
+  font-size: var(--fs-sm);
   flex-wrap: wrap;
 }
 
 .gantt-mock-popover-section > span {
-  width: 56px;
-  color: #555;
+  width: 60px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
 }
 
 .gantt-mock-color-swatch {
   width: 22px;
   height: 22px;
-  border-radius: 3px;
-  border: 1px solid #999;
+  border-radius: 50%;
+  border: 1px solid rgba(15, 23, 42, 0.15);
   cursor: pointer;
   padding: 0;
+  transition: transform 0.1s;
+}
+
+.gantt-mock-color-swatch:hover {
+  transform: scale(1.12);
 }
 
 .gantt-mock-color-swatch.selected {
-  outline: 2px solid #1976d2;
-  outline-offset: 1px;
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .gantt-mock-popover-section input[type="color"] {
   width: 28px;
   height: 22px;
   padding: 0;
-  border: 1px solid #999;
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-sm);
   cursor: pointer;
 }
 
 .gantt-mock-popover-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 8px;
   margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
 }
 
 .gantt-mock-popover-actions button {
-  padding: 4px 12px;
-  border-radius: 3px;
-  border: 1px solid #999;
-  background: #fff;
+  padding: 6px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
   cursor: pointer;
   font: inherit;
+  font-size: var(--fs-base);
+  font-weight: 500;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.gantt-mock-popover-actions button:hover {
+  background: var(--color-surface-hover);
 }
 
 .gantt-mock-popover-actions button.primary {
-  background: #1976d2;
+  background: var(--color-accent);
   color: #fff;
-  border-color: #1976d2;
+  border-color: var(--color-accent);
+}
+
+.gantt-mock-popover-actions button.primary:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
 }
 
 .gantt-mock-popover-actions button.danger {
-  background: #fff;
-  color: #c62828;
-  border-color: #c62828;
+  background: var(--color-surface);
+  color: var(--color-danger);
+  border-color: var(--color-danger);
 }
 
-/* ---------- 共通 ---------- */
+.gantt-mock-popover-actions button.danger:hover {
+  background: var(--color-danger-soft);
+}
+
+/* ============================================================
+   Common
+   ============================================================ */
 
 .loading,
 .error {
   padding: 24px;
-  font-size: 14px;
+  font-size: var(--fs-md);
+  color: var(--color-text-secondary);
 }
 
-.error {
-  color: #c62828;
-}
+.error { color: var(--color-danger); }
 
 .page-title {
-  margin: 0 0 12px;
-  font-size: 14px;
-  color: #555;
+  margin: 0 0 16px;
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+  line-height: 1.6;
 }

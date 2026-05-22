@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchJobs, putJob, type JobResponse } from '../lib/api'
-import type { JobData, Note, Step } from '../../lib/schemas'
+import type { JobData, JobEvent, Note, Step } from '../../lib/schemas'
 import { addDays, dateOfDay, monthEnd, monthStart } from '../lib/dateUtils'
 
 const CELL_PX = 32
@@ -12,6 +12,7 @@ const DAYS = Array.from({ length: 30 }, (_, i) => i + 1)
 const COLOR_PRESETS = ['#60a5fa', '#34d399', '#fbbf24', '#fb923c', '#f87171', '#a78bfa']
 const DEFAULT_BAR_COLOR = '#94a3b8'
 const DEFAULT_NOTE_COLOR = '#fde68a'
+const DEFAULT_EVENT_COLOR = '#ffffff'
 
 function dayOf(date: string): number {
   return Number(date.split('-')[2])
@@ -32,7 +33,7 @@ function newId(): string {
 }
 
 function emptyData(): JobData {
-  return { category: null, comment: null, steps: [] }
+  return { category: null, comment: null, steps: [], events: [] }
 }
 
 // ============================================================
@@ -69,6 +70,22 @@ function addNote(data: JobData, stepName: string, date: string): JobData {
   const note: Note = { id: newId(), startDate: date, endDate: date, text: '', color: DEFAULT_NOTE_COLOR }
   const nextStep: Step = { ...step, notes: [...step.notes, note] }
   return { ...data, steps: [...data.steps.slice(0, sIdx), nextStep, ...data.steps.slice(sIdx + 1)] }
+}
+
+function patchEvent(data: JobData, eventId: string, patch: Partial<JobEvent> | null): JobData {
+  if (patch === null) {
+    return { ...data, events: data.events.filter((e) => e.id !== eventId) }
+  }
+  const idx = data.events.findIndex((e) => e.id === eventId)
+  if (idx < 0) return data
+  const updated: JobEvent = { ...data.events[idx]!, ...patch }
+  return { ...data, events: [...data.events.slice(0, idx), updated, ...data.events.slice(idx + 1)] }
+}
+
+function addEvent(data: JobData, date: string): JobData {
+  if (data.events.some((e) => date >= e.startDate && date <= e.endDate)) return data
+  const event: JobEvent = { id: newId(), startDate: date, endDate: date, text: '', color: DEFAULT_EVENT_COLOR }
+  return { ...data, events: [...data.events, event] }
 }
 
 // ============================================================
@@ -111,6 +128,14 @@ export function GanttPage() {
     commit(rowNo, addNote(data, stepName, date))
   }
 
+  function onUpdateEvent(rowNo: number, data: JobData, eventId: string, patch: Partial<JobEvent> | null) {
+    commit(rowNo, patchEvent(data, eventId, patch))
+  }
+
+  function onAddEvent(rowNo: number, data: JobData, date: string) {
+    commit(rowNo, addEvent(data, date))
+  }
+
   return (
     <div>
       <p className="page-title">
@@ -137,6 +162,7 @@ export function GanttPage() {
               onUpdateStep={(stepName, patch) => onUpdateStep(rowNo, data, stepName, patch)}
               onUpdateNote={(stepName, noteId, patch) => onUpdateNote(rowNo, data, stepName, noteId, patch)}
               onAddNote={(stepName, date) => onAddNote(rowNo, data, stepName, date)}
+              onAddEvent={(date) => onAddEvent(rowNo, data, date)}
               onOpenPopover={setPopover}
             />
           )
@@ -144,22 +170,31 @@ export function GanttPage() {
       </div>
       {popover && (
         <NotePopover
-          key={popover.noteId}
+          key={popover.itemId}
           state={popover}
           onClose={() => setPopover(null)}
           onSave={(patch) => {
             const job = byRowNo.get(popover.rowNo)
             const data = job?.data ?? emptyData()
-            onUpdateNote(popover.rowNo, data, popover.stepName, popover.noteId, patch)
+            if (popover.kind === 'note' && popover.stepName) {
+              onUpdateNote(popover.rowNo, data, popover.stepName, popover.itemId, patch)
+            } else {
+              onUpdateEvent(popover.rowNo, data, popover.itemId, patch)
+            }
             setPopover(null)
           }}
           onDelete={() => {
             const job = byRowNo.get(popover.rowNo)
             const data = job?.data ?? emptyData()
-            onUpdateNote(popover.rowNo, data, popover.stepName, popover.noteId, null)
+            if (popover.kind === 'note' && popover.stepName) {
+              onUpdateNote(popover.rowNo, data, popover.stepName, popover.itemId, null)
+            } else {
+              onUpdateEvent(popover.rowNo, data, popover.itemId, null)
+            }
             setPopover(null)
           }}
           onChangeBarColor={(color) => {
+            if (popover.kind !== 'note' || !popover.stepName) return
             const job = byRowNo.get(popover.rowNo)
             const data = job?.data ?? emptyData()
             onUpdateStep(popover.rowNo, data, popover.stepName, { color })
@@ -180,6 +215,7 @@ function JobRowGroup({
   onUpdateStep,
   onUpdateNote,
   onAddNote,
+  onAddEvent,
   onOpenPopover,
 }: {
   rowNo: number
@@ -188,16 +224,78 @@ function JobRowGroup({
   onUpdateStep: (stepName: string, patch: Partial<Step>) => void
   onUpdateNote: (stepName: string, noteId: string, patch: Partial<Note> | null) => void
   onAddNote: (stepName: string, date: string) => void
+  onAddEvent: (date: string) => void
   onOpenPopover: (state: PopoverState) => void
 }) {
+  const summaryRowRef = useRef<HTMLDivElement>(null)
+
+  const jobRange = (() => {
+    if (data.steps.length === 0) return null
+    let minStart = data.steps[0]!.startDate
+    let maxEnd = data.steps[0]!.endDate
+    for (const s of data.steps) {
+      if (s.startDate < minStart) minStart = s.startDate
+      if (s.endDate > maxEnd) maxEnd = s.endDate
+    }
+    return { start: minStart, end: maxEnd }
+  })()
+
+  function dateFromClientX(clientX: number): string | null {
+    const rowEl = summaryRowRef.current
+    if (!rowEl) return null
+    const rect = rowEl.getBoundingClientRect()
+    const dayAreaLeft = rect.left + 56 + 80 + 80
+    const dayIdx = Math.floor((clientX - dayAreaLeft) / CELL_PX)
+    if (dayIdx < 0 || dayIdx >= DAYS.length) return null
+    return dateOfDay(dayIdx + 1)
+  }
+
   return (
     <>
-      <div className="gantt-row" style={gridStyle}>
+      <div
+        className="gantt-row gantt-mock-summary"
+        style={{ ...gridStyle, position: 'relative' }}
+        ref={summaryRowRef}
+        onDoubleClick={(e) => {
+          const date = dateFromClientX(e.clientX)
+          if (date) onAddEvent(date)
+        }}
+        title="ダブルクリックでイベント追加"
+      >
         <div className="gantt-cell row-no">{rowNo}</div>
         <div className="gantt-cell label">{data.category ?? ''}</div>
         <div className="gantt-cell label" />
         {DAYS.map((d) => (
           <div key={d} className="gantt-cell" />
+        ))}
+        {jobRange && (
+          <div
+            className="gantt-job-range-arrow"
+            style={{
+              gridColumnStart: 3 + dayOf(jobRange.start),
+              gridColumnEnd: 3 + dayOf(jobRange.end) + 1,
+            }}
+            title={`全体期間: ${jobRange.start} 〜 ${jobRange.end}`}
+          />
+        )}
+        {data.events.map((event) => (
+          <EventTile
+            key={event.id}
+            event={event}
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenPopover({
+                rowNo,
+                kind: 'event',
+                stepName: null,
+                itemId: event.id,
+                text: event.text,
+                color: event.color ?? DEFAULT_EVENT_COLOR,
+                x: e.clientX,
+                y: e.clientY,
+              })
+            }}
+          />
         ))}
       </div>
       {STEP_NAMES.map((stepName) => {
@@ -249,9 +347,10 @@ function StepRow({
     startX: number
     startStart: string
     startEnd: string
+    startNotes: Note[]
     moved: boolean
   } | null>(null)
-  const [draftBar, setDraftBar] = useState<{ start: string; end: string } | null>(null)
+  const [draftBar, setDraftBar] = useState<{ start: string; end: string; notes?: Note[] } | null>(null)
   const rowRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -264,9 +363,17 @@ function StepRow({
       const deltaDays = Math.round(deltaPx / CELL_PX)
       let start = drag.startStart
       let end = drag.startEnd
+      let notes: Note[] | undefined
       if (drag.kind === 'move') {
         start = clampDate(addDays(drag.startStart, deltaDays))
         end = clampDate(addDays(drag.startEnd, deltaDays))
+        // バーと同じ実 delta で内訳 Note も持ち上げる
+        const realDelta = dayOf(start) - dayOf(drag.startStart)
+        notes = drag.startNotes.map((n) => ({
+          ...n,
+          startDate: clampDate(addDays(n.startDate, realDelta), start, end),
+          endDate: clampDate(addDays(n.endDate, realDelta), start, end),
+        }))
       } else if (drag.kind === 'resize-start') {
         const cand = clampDate(addDays(drag.startStart, deltaDays))
         start = cand <= drag.startEnd ? cand : drag.startEnd
@@ -274,14 +381,16 @@ function StepRow({
         const cand = clampDate(addDays(drag.startEnd, deltaDays))
         end = cand >= drag.startStart ? cand : drag.startStart
       }
-      setDraftBar({ start, end })
+      setDraftBar({ start, end, ...(notes ? { notes } : {}) })
     }
     function onUp() {
       const drag = dragRef.current
       if (!drag) return
       dragRef.current = null
       if (drag.moved && draftBar) {
-        onUpdateStep(stepName, { startDate: draftBar.start, endDate: draftBar.end })
+        const patch: Partial<Step> = { startDate: draftBar.start, endDate: draftBar.end }
+        if (draftBar.notes) patch.notes = draftBar.notes
+        onUpdateStep(stepName, patch)
       }
       setDraftBar(null)
     }
@@ -302,6 +411,7 @@ function StepRow({
       startX: e.clientX,
       startStart: step.startDate,
       startEnd: step.endDate,
+      startNotes: step.notes,
       moved: false,
     }
   }
@@ -330,8 +440,8 @@ function StepRow({
         <div
           className="gantt-mock-bar"
           style={{
-            gridColumnStart: 3 + dayOf(display.start) + 1,
-            gridColumnEnd: 3 + dayOf(display.end) + 1 + 1,
+            gridColumnStart: 3 + dayOf(display.start),
+            gridColumnEnd: 3 + dayOf(display.end) + 1,
             background: step.color ?? DEFAULT_BAR_COLOR,
           }}
           onPointerDown={(e) => startBarDrag('move', e)}
@@ -344,19 +454,20 @@ function StepRow({
         >
           <div className="gantt-mock-bar-handle left" onPointerDown={(e) => startBarDrag('resize-start', e)} />
           <div className="gantt-mock-bar-handle right" onPointerDown={(e) => startBarDrag('resize-end', e)} />
-          {step.notes.map((note) => (
+          {(draftBar?.notes ?? step.notes).map((note) => (
             <NoteTile
               key={note.id}
               note={note}
               barStart={display.start}
               barEnd={display.end}
-              otherNotes={step.notes.filter((n) => n.id !== note.id)}
+              otherNotes={(draftBar?.notes ?? step.notes).filter((n) => n.id !== note.id)}
               onCommitRange={(start, end) => onUpdateNote(stepName, note.id, { startDate: start, endDate: end })}
               onClick={(e) =>
                 onOpenPopover({
                   rowNo,
+                  kind: 'note',
                   stepName,
-                  noteId: note.id,
+                  itemId: note.id,
                   text: note.text,
                   color: note.color ?? DEFAULT_NOTE_COLOR,
                   x: e.clientX,
@@ -367,6 +478,33 @@ function StepRow({
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// ============================================================
+// EventTile — Summary 行に乗るジョブ全体のイベント
+// ============================================================
+function EventTile({
+  event,
+  onClick,
+}: {
+  event: JobEvent
+  onClick: (e: React.MouseEvent) => void
+}) {
+  return (
+    <div
+      className="gantt-mock-event"
+      style={{
+        gridColumnStart: 3 + dayOf(event.startDate),
+        gridColumnEnd: 3 + dayOf(event.endDate) + 1,
+        background: event.color ?? DEFAULT_EVENT_COLOR,
+      }}
+      onClick={onClick}
+      onDoubleClick={(e) => e.stopPropagation()}
+      title={event.text || '(クリックで編集)'}
+    >
+      <div className="gantt-mock-event-text">{event.text.split('\n')[0] || '(イベント)'}</div>
     </div>
   )
 }
@@ -488,8 +626,9 @@ function NoteTile({
 // ============================================================
 interface PopoverState {
   rowNo: number
-  stepName: string
-  noteId: string
+  kind: 'note' | 'event'
+  stepName: string | null
+  itemId: string
   text: string
   color: string
   x: number
@@ -519,16 +658,16 @@ function NotePopover({
         className="gantt-mock-popover"
         style={{ left: Math.min(state.x, window.innerWidth - 320), top: Math.min(state.y, window.innerHeight - 280) }}
       >
-        <div className="gantt-mock-popover-title">Note 編集</div>
+        <div className="gantt-mock-popover-title">{state.kind === 'event' ? 'イベント編集' : 'Note 編集'}</div>
         <textarea
           autoFocus
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={'長文メモを入力\n（改行可）'}
-          rows={5}
+          placeholder={state.kind === 'event' ? 'イベント名（例: 出荷）' : '長文メモを入力\n（改行可）'}
+          rows={state.kind === 'event' ? 2 : 5}
         />
         <div className="gantt-mock-popover-section">
-          <span>Note 色:</span>
+          <span>{state.kind === 'event' ? '色:' : 'Note 色:'}</span>
           {COLOR_PRESETS.map((c) => (
             <button
               key={c}
@@ -539,17 +678,19 @@ function NotePopover({
           ))}
           <input type="color" value={color} onChange={(e) => setColor(e.target.value)} />
         </div>
-        <div className="gantt-mock-popover-section">
-          <span>バー色:</span>
-          {COLOR_PRESETS.map((c) => (
-            <button
-              key={c}
-              className="gantt-mock-color-swatch"
-              style={{ background: c }}
-              onClick={() => onChangeBarColor(c)}
-            />
-          ))}
-        </div>
+        {state.kind === 'note' && (
+          <div className="gantt-mock-popover-section">
+            <span>バー色:</span>
+            {COLOR_PRESETS.map((c) => (
+              <button
+                key={c}
+                className="gantt-mock-color-swatch"
+                style={{ background: c }}
+                onClick={() => onChangeBarColor(c)}
+              />
+            ))}
+          </div>
+        )}
         <div className="gantt-mock-popover-actions">
           <button onClick={onDelete} className="danger">削除</button>
           <button onClick={onClose}>キャンセル</button>
