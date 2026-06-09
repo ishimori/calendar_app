@@ -22,3 +22,7 @@ prisma/dev.db-journal
 .idea/
 .DS_Store
 Thumbs.db
+
+# Claude Code (skills は意図的に追跡。設定・ローカルファイルは除外)
+.claude/*
+!.claude/skills/
